@@ -1,2 +1,2 @@
-# wvs-Indonesia
-Riset pakai data world value survey Indonesia yang gak buru2 dan santai.
+# wvs-religion-Indonesia
+Code and Data appendix from the research "The Role of Economics Values in Voting Non-Muslims: Evidence from Indonesian Muslims"
