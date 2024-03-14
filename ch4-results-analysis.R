@@ -11,9 +11,9 @@ library(miceadds)
 library(writexl)
 library(Hmisc)
 library(gtsummary)
+library(purrr)
 
-wd = ''
-setwd(mac_wd)
+setwd("")
 
 wvs = read_dta('Data dan Kuesioner/WVS.dta')
 
@@ -37,7 +37,9 @@ df_filter = df %>%
   filter(qnm1>0) %>%
   filter(qnm2>0) %>%
   filter(qnm3>0) %>%
-  filter(obs_h1>0)
+  filter(obs_h1>0) %>%
+  filter(q171>0) %>%
+  filter(q172>0)
   # filter(q158>0 | q159>0 | q160>0 | q161>0 | q162>0 | q163>0)
 
 # Variable treatment
@@ -116,6 +118,10 @@ urban = df_filter['obs_h1']
 # Kode Region/Provinsi
 prov_code = df_filter['obs_n_cd']
 
+# Agama
+religious_events = df_filter['q171']
+religious_worship = df_filter['q172']
+
 # Combining dataframe
 combined_df = cbind(president_binary,
                     mayor_binary,
@@ -128,7 +134,9 @@ combined_df = cbind(president_binary,
                     sex, age, art, ms, educ2,
                     job_type, class_life, class_wage,
                     main_worker, inst_type,
-                    urban, prov_code)
+                    urban, prov_code,
+                    religious_events,
+                    religious_worship)
 
 colnames(combined_df) = c('president_response',
                           'mayor_response',
@@ -140,7 +148,7 @@ colnames(combined_df) = c('president_response',
                           'work_hard_binary',
                           'sex', 'age', 'art', 'ms', 'educ_level', 'job_type',
                           'class_life', 'class_wage', 'main_worker', 'inst_type',
-                          'urban', 'prov_code')
+                          'urban', 'prov_code', 'religious_events', 'religious_worship')
 
 var.labels = c(president_response = 'President Response', mayor_response = 'Mayor Response', 
                legislative_response = 'Local Parliament Response',
@@ -151,7 +159,8 @@ var.labels = c(president_response = 'President Response', mayor_response = 'Mayo
                work_hard_binary = 'Work Hard Treatment',
                sex = "Sex", age = 'Age', art = 'Household Member', ms = "Marital Status", educ_level = 'Education Level', job_type = 'Job Type',
                class_life = "Life Class", class_wage = "Wage Scale", main_worker = 'Main Worker Status', urban = "Urban", inst_type = 'Institution Type',
-               prov_code = "Provinces Code")
+               prov_code = "Provinces Code", religious_events = 'Religious Events Frequency', 
+               religious_worship = 'Religious Worship Frequency')
 
 label(combined_df) = as.list(var.labels[match(names(combined_df), names(var.labels))])
 label(combined_df)
@@ -161,11 +170,11 @@ label(combined_df)
 # Read the paper about PSM in R:
 # https://cran.r-project.org/web/packages/MatchIt/vignettes/matching-methods.html#:~:text=Nearest%20neighbor%20matching%20(%20method%20%3D%20%22nearest%22%20)%2C%20optimal,distance%20matching%20implemented%20in%20MatchIt%20.
 
-test_income = income_equality_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
-test_ownership = ownership_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
-test_gov_role = gov_role_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
-test_competitive = competitive_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
-test_work_hard = work_hard_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+test_income = income_equality_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
+test_ownership = ownership_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
+test_gov_role = gov_role_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
+test_competitive = competitive_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
+test_work_hard = work_hard_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
 
 # Function to perform PSM and export the result as an excel file
 
@@ -218,67 +227,68 @@ psm_work_hard = PSM_treatment('work hard')
 
 # After the matching, all the treatment variables are balanced in covariates
 # Function to estimate the Weighted Logistic Regression and export the result as an html file
-WLS_response = function(treatment_name) {
+WLS_response = function(treatment_name, vcov_type='HC3') {
   # treatment_name is a string: 'income equality';'private ownership';
   #                             'government role';'competition';'work hard'
   
-  # treatment_name = 'income equality'
+  # treatment_name = 'competition'
+  # vcov_type = 'HC3'
   
   if (treatment_name=='income equality') {
     m.out = psm_income
     sm_president = president_response ~ income_equality_binary
-    fm_president = president_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_president = president_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_mayor = mayor_response ~ income_equality_binary
-    fm_mayor = mayor_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_mayor = mayor_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_legislative = legislative_response ~ income_equality_binary
-    fm_legislative = legislative_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_legislative = legislative_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     
   } else if (treatment_name=='private ownership') {
     m.out = psm_ownership
     sm_president = president_response ~ ownership_binary
-    fm_president = president_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_president = president_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_mayor = mayor_response ~ ownership_binary
-    fm_mayor = mayor_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_mayor = mayor_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_legislative = legislative_response ~ ownership_binary
-    fm_legislative = legislative_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_legislative = legislative_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
   } else if (treatment_name=='government role') {
     m.out = psm_gov_role
     sm_president = president_response ~ gov_role_binary
-    fm_president = president_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_president = president_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_mayor = mayor_response ~ gov_role_binary
-    fm_mayor = mayor_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_mayor = mayor_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_legislative = legislative_response ~ gov_role_binary
-    fm_legislative = legislative_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_legislative = legislative_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
   } else if (treatment_name=='competition') {
     m.out = psm_competition
     sm_president = president_response ~ competitive_binary
-    fm_president = president_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_president = president_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_mayor = mayor_response ~ competitive_binary
-    fm_mayor = mayor_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_mayor = mayor_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_legislative = legislative_response ~ competitive_binary
-    fm_legislative = legislative_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_legislative = legislative_response ~ competitive_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
   } else if (treatment_name=='work hard') {
     m.out = psm_work_hard
     sm_president = president_response ~ work_hard_binary
-    fm_president = president_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_president = president_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_mayor = mayor_response ~ work_hard_binary
-    fm_mayor = mayor_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_mayor = mayor_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
     sm_legislative = legislative_response ~ work_hard_binary
-    fm_legislative = legislative_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
+    fm_legislative = legislative_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
     
   } else {
     print('Unrecognized treatment_name')
@@ -331,31 +341,31 @@ WLS_response = function(treatment_name) {
                    'Non-Moslem Local Parliament', 'Non-Moslem Local Parliament')
   
   t1 = 
-    tbl_regression(logit_sm_president, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_sm_president, exponentiate = TRUE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   t2 = 
-    tbl_regression(logit_fm_president, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_fm_president, exponentiate = TRUE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   
   t3 = 
-    tbl_regression(logit_sm_mayor, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_sm_mayor, exponentiate = TRUE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   t4 = 
-    tbl_regression(logit_fm_mayor, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_fm_mayor, exponentiate = TRUE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   
   t5 = 
-    tbl_regression(logit_sm_legislative, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_sm_legislative, exponentiate = TRUE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   
   t6 = 
-    tbl_regression(logit_fm_legislative, exponentiate = FALSE,
-                   intercept = TRUE) %>%
+    tbl_regression(logit_fm_legislative, exponentiate = TRUE, # hide_se= FALSE,
+                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
     bold_p()
   
   # merge tables
@@ -376,32 +386,3 @@ wls_ownership = WLS_response('private ownership')
 wls_gov_role = WLS_response('government role')
 wls_competition = WLS_response('competition')
 wls_work_hard = WLS_response('work hard')
-
-# Logistic regression with cluster standard error
-match_data = match.data(m.out)
-model_test2 = binary_outcomes ~ binary_treatment
-model_test3 = binary_outcomes ~ binary_treatment + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type
-
-logistic_model2 <- glm.cluster(model_test2,
-                              data = match_data,
-                              family = 'binomial',
-                              cluster = 'prov_code')
-
-logistic_model3 <- glm.cluster(model_test3,
-                               data = match_data,
-                               family = 'binomial',
-                               cluster = 'prov_code')
-
-
-
-summary(logistic_model2)
-summary(logistic_model3)
-
-sink('Tables and Graphs/Logit 1 competitive behavior on religion neighbor.rtf')
-print(summary(logistic_model2))
-sink()
-
-sink('Tables and Graphs/Logit 2 competitive behavior on religion neighbor.rtf')
-print(summary(logistic_model3))
-sink()
-
