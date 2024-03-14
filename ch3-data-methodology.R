@@ -12,8 +12,7 @@ library(writexl)
 library(gtsummary)
 library(stargazer)
 
-wd = ''
-setwd(wd)
+setwd("")
 
 wvs = read_dta('Data dan Kuesioner/WVS.dta')
 
@@ -26,6 +25,7 @@ df_filter = df %>%
   filter(q108>0) %>%
   filter(q109>0) %>%
   filter(q110>0) %>%
+  filter(q135>0) %>%
   filter(q275>=0) %>%
   filter(q279>=1 & q279<=3) %>% # hanya ambil yang kerja aja, fulltime parttime dan wirausaha
   filter(q284>=0) %>%
@@ -36,7 +36,9 @@ df_filter = df %>%
   filter(qnm1>0) %>%
   filter(qnm2>0) %>%
   filter(qnm3>0) %>%
-  filter(obs_h1>0)
+  filter(obs_h1>0) %>%
+  filter(q171>0) %>%
+  filter(q172>0)
 # filter(q158>0 | q159>0 | q160>0 | q161>0 | q162>0 | q163>0)
 
 # Variable treatment
@@ -115,6 +117,10 @@ urban = df_filter['obs_h1']
 # Kode Region/Provinsi
 prov_code = df_filter['obs_n_cd']
 
+# Agama
+religious_events = df_filter['q171']
+religious_worship = df_filter['q172']
+
 # Combining dataframe
 combined_df = cbind(president_binary,
                     mayor_binary,
@@ -127,7 +133,9 @@ combined_df = cbind(president_binary,
                     sex, age, art, ms, educ2,
                     job_type, class_life, class_wage,
                     main_worker, inst_type,
-                    urban, prov_code)
+                    urban, prov_code,
+                    religious_events,
+                    religious_worship)
 
 colnames(combined_df) = c('president_response',
                           'mayor_response',
@@ -139,11 +147,14 @@ colnames(combined_df) = c('president_response',
                           'work_hard_binary',
                           'sex', 'age', 'art', 'ms', 'educ_level', 'job_type',
                           'class_life', 'class_wage', 'main_worker', 'inst_type',
-                          'urban', 'prov_code')
+                          'urban', 'prov_code', 'religious_events', 'religious_worship')
 
 # Converting as categorical variable
 combined_df$job_type = factor(combined_df$job_type)
 combined_df$class_wage = factor(combined_df$class_wage)
+combined_df$sex = factor(combined_df$sex)
+combined_df$religious_events = factor(combined_df$religious_events)
+combined_df$religious_worship = factor(combined_df$religious_worship)
 combined_df$income_equality_binary = factor(combined_df$income_equality_binary)
 combined_df$ownership_binary = factor(combined_df$ownership_binary)
 combined_df$gov_role_binary = factor(combined_df$gov_role_binary)
@@ -159,7 +170,7 @@ table_basic <-
   combined_df %>%
   tbl_summary(include = c(sex, age, art, ms, educ_level, job_type,
                           class_life, class_wage, main_worker, inst_type,
-                          urban)) %>%
+                          urban, religious_events, religious_worship)) %>%
   as_gt() %>%
   gt::gtsave(filename = "Tables and Graphs/Table Bab 3 Data and Methodology/table summary basic covariates.docx")
 
