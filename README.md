@@ -1,2 +1,2 @@
 # wvs-religion-Indonesia
-Code and Data appendix from the research "The Role of Economics Values in Voting Non-Muslims: Evidence from Indonesian Muslims"
+Code and Data appendix from the research "Beyond the Mosque: Economic Factors Driving Muslim Vote Choice in Indonesia"
