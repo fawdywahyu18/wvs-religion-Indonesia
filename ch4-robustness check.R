@@ -41,29 +41,14 @@ df_filter = df %>%
   filter(obs_h1>0) %>%
   filter(q171>0) %>%
   filter(q172>0)
-  # filter(q158>0 | q159>0 | q160>0 | q161>0 | q162>0 | q163>0)
+# filter(q158>0 | q159>0 | q160>0 | q161>0 | q162>0 | q163>0)
 
 # Variable treatment
-
-# Variable Treatment kuesioner mengenai Economic Equality Perspective
-income_equality = df_filter['q106']
-income_equality_binary = ifelse(income_equality>5, 1, 0)
-
-ownership = df_filter['q107']
-ownership_binary = ifelse(ownership>5, 1, 0)
-
-government_role = df_filter['q108']
-gov_role_binary = ifelse(government_role>5, 1, 0)
-
 competitive = df_filter['q109']
 competitive_binary = ifelse(competitive>5, 1, 0)
 
 set.seed(42)
 competitive_binary_placebo = sample(competitive_binary)
-
-
-work_hard = df_filter['q110']
-work_hard_binary = ifelse(work_hard>5, 1, 0)
 
 # Variable Outcome
 # Apakah bisa menerima pemimpin politik non-muslim?
@@ -131,12 +116,8 @@ religious_worship = df_filter['q172']
 combined_df = cbind(president_binary,
                     mayor_binary,
                     legislative_binary,
-                    income_equality_binary,
-                    ownership_binary,
-                    gov_role_binary,
                     competitive_binary,
                     competitive_binary_placebo,
-                    work_hard_binary,
                     sex, age, art, ms, educ2,
                     job_type, class_life, class_wage,
                     main_worker, inst_type,
@@ -147,23 +128,15 @@ combined_df = cbind(president_binary,
 colnames(combined_df) = c('president_response',
                           'mayor_response',
                           'legislative_response',
-                          'income_equality_binary',
-                          'ownership_binary',
-                          'gov_role_binary',
                           'competitive_binary',
                           'competitive_binary_placebo',
-                          'work_hard_binary',
                           'sex', 'age', 'art', 'ms', 'educ_level', 'job_type',
                           'class_life', 'class_wage', 'main_worker', 'inst_type',
                           'urban', 'prov_code', 'religious_events', 'religious_worship')
 
 var.labels = c(president_response = 'President Response', mayor_response = 'Mayor Response', 
-               legislative_response = 'Local Parliament Response',
-               income_equality_binary = 'Income Equality Treatment', 
-               ownership_binary = 'Private Ownership Treatment',
-               gov_role_binary = 'Government Role Treatment', 
+               legislative_response = 'Local Parliament Response', 
                competitive_binary = 'Competitive Treatment',
-               work_hard_binary = 'Work Hard Treatment',
                sex = "Sex", age = 'Age', art = 'Household Member', ms = "Marital Status", educ_level = 'Education Level', job_type = 'Job Type',
                class_life = "Life Class", class_wage = "Wage Scale", main_worker = 'Main Worker Status', urban = "Urban", inst_type = 'Institution Type',
                prov_code = "Provinces Code", religious_events = 'Religious Events Frequency', 
@@ -173,217 +146,70 @@ var.labels = c(president_response = 'President Response', mayor_response = 'Mayo
 label(combined_df) = as.list(var.labels[match(names(combined_df), names(var.labels))])
 label(combined_df)
 
+# Iterasi 500 kali
 
-# Peform the PSM Analysis the check the balance of data
-# Read the paper about PSM in R:
-# https://cran.r-project.org/web/packages/MatchIt/vignettes/matching-methods.html#:~:text=Nearest%20neighbor%20matching%20(%20method%20%3D%20%22nearest%22%20)%2C%20optimal,distance%20matching%20implemented%20in%20MatchIt%20.
+# Number of iterations
+iterations <- 500
 
-test_income = income_equality_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-test_ownership = ownership_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-test_gov_role = gov_role_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-test_competitive = competitive_binary_placebo ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-test_work_hard = work_hard_binary ~ sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
+# Initialize vectors to store p-values for each iteration
+p_values_president <- numeric(iterations)
+p_values_mayor <- numeric(iterations)
+p_values_legislative <- numeric(iterations)
 
-# Function to perform PSM and export the result as an excel file
+set.seed(42)  # For reproducibility
 
-PSM_treatment = function(treatment_name) {
-  # treatment_name is a string: 'income equality';'private ownership';
-  #                             'government role';'competition';'work hard'
+for (i in 1:iterations) {
+  # Print progress
+  cat("Running iteration:", i, "out of", iterations, "\n")
   
-  if (treatment_name=='income equality') {
-    model_test = test_income
-  } else if (treatment_name=='private ownership') {
-    model_test = test_ownership
-  } else if (treatment_name=='government role') {
-    model_test = test_gov_role
-  } else if (treatment_name=='competition') {
-    model_test = test_competitive
-  } else if (treatment_name=='work hard') {
-    model_test = test_work_hard
-  } else {
-    print('Unrecognized treatment_name')
-  }
+  # Shuffle the competitive binary variable to create a new placebo treatment
+  competitive_binary_placebo <- sample(combined_df$competitive_binary)
   
-  m.out = matchit(model_test,
-                  data = combined_df, method = 'full', ratio = 1, distance = 'glm')
-  summary_text = summary(m.out)
-  list_excel = list(before_matching = data.frame(summary_text$sum.all, 
-                                                 row_names = rownames(summary_text$sum.all)),
-                    after_matching = data.frame(summary_text$sum.matched,
-                                                row_names = rownames(summary_text$sum.matched)),
-                    matching_summary = data.frame(summary_text$nn,
-                                                  row_names = rownames(summary_text$nn)))
+  # Add the new placebo treatment to the data
+  combined_df$competitive_binary_placebo <- competitive_binary_placebo
   
-  # Filename to export as an excel file
-  words = c('Tables and Graphs/Table Bab 4 Hasil Analisis Robustness Check/PSM Summary of ', treatment_name, '.xlsx')
-  file_name_export = paste(words, collapse = "")
+  # Perform matching with the placebo treatment
+  m.out <- matchit(competitive_binary_placebo ~ sex + age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship,
+                   data = combined_df, method = 'full', ratio = 1, distance = 'glm')
   
-  write_xlsx(list_excel,
-             file_name_export)
+  # Extract matched data and weights
+  match_data <- match.data(m.out)
+  data_weight <- match_data$weights
   
-  return(m.out)
+  # Run weighted logistic regressions for each outcome variable with the placebo treatment
+  logit_fm_president <- suppressWarnings(glm(fm_president, data = match_data, family = 'binomial', weights = data_weight))
+  logit_fm_mayor <- suppressWarnings(glm(fm_mayor, data = match_data, family = 'binomial', weights = data_weight))
+  logit_fm_legislative <- suppressWarnings(glm(fm_legislative, data = match_data, family = 'binomial', weights = data_weight))
+  
+  # Store p-values for the placebo treatment variable in each model
+  p_values_president[i] <- coeftest(logit_fm_president, vcov = vcovHC(logit_fm_president, type = "HC3"))[2, 4]
+  p_values_mayor[i] <- coeftest(logit_fm_mayor, vcov = vcovHC(logit_fm_mayor, type = "HC3"))[2, 4]
+  p_values_legislative[i] <- coeftest(logit_fm_legislative, vcov = vcovHC(logit_fm_legislative, type = "HC3"))[2, 4]
 }
 
-# Run the function of PSM_treatment
-psm_competition = PSM_treatment('competition')
+# Combine p-values into a data frame for analysis
+p_values_df <- data.frame(
+  iteration = 1:iterations,
+  p_val_president = p_values_president,
+  p_val_mayor = p_values_mayor,
+  p_val_legislative = p_values_legislative
+)
 
-# After the matching, all the treatment variables are balanced in covariates
-# Function to estimate the Weighted Logistic Regression and export the result as an html file
-WLS_response = function(treatment_name, vcov_type='HC3') {
-  # treatment_name is a string: 'income equality';'private ownership';
-  #                             'government role';'competition';'work hard'
-  
-  # treatment_name = 'competition'
-  # vcov_type = 'HC3'
-  
-  if (treatment_name=='income equality') {
-    m.out = psm_income
-    sm_president = president_response ~ income_equality_binary
-    fm_president = president_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_mayor = mayor_response ~ income_equality_binary
-    fm_mayor = mayor_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_legislative = legislative_response ~ income_equality_binary
-    fm_legislative = legislative_response ~ income_equality_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    
-  } else if (treatment_name=='private ownership') {
-    m.out = psm_ownership
-    sm_president = president_response ~ ownership_binary
-    fm_president = president_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_mayor = mayor_response ~ ownership_binary
-    fm_mayor = mayor_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_legislative = legislative_response ~ ownership_binary
-    fm_legislative = legislative_response ~ ownership_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-  } else if (treatment_name=='government role') {
-    m.out = psm_gov_role
-    sm_president = president_response ~ gov_role_binary
-    fm_president = president_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_mayor = mayor_response ~ gov_role_binary
-    fm_mayor = mayor_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_legislative = legislative_response ~ gov_role_binary
-    fm_legislative = legislative_response ~ gov_role_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-  } else if (treatment_name=='competition') {
-    m.out = psm_competition
-    sm_president = president_response ~ competitive_binary_placebo
-    fm_president = president_response ~ competitive_binary_placebo + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_mayor = mayor_response ~ competitive_binary_placebo
-    fm_mayor = mayor_response ~ competitive_binary_placebo + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_legislative = legislative_response ~ competitive_binary_placebo
-    fm_legislative = legislative_response ~ competitive_binary_placebo + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-  } else if (treatment_name=='work hard') {
-    m.out = psm_work_hard
-    sm_president = president_response ~ work_hard_binary
-    fm_president = president_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_mayor = mayor_response ~ work_hard_binary
-    fm_mayor = mayor_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-    sm_legislative = legislative_response ~ work_hard_binary
-    fm_legislative = legislative_response ~ work_hard_binary + sex +  age + educ_level + job_type + art + class_wage + class_life + ms + urban + main_worker + inst_type + religious_events + religious_worship
-    
-  } else {
-    print('Unrecognized treatment_name')
-  }
-  
-  # Extract the match data and weight
-  match_data = match.data(m.out)
-  data_weight = match_data$weights
-  
-  # Weighted Logistic Regression
-  # Short Model (SM)
-  logit_sm_president = glm(sm_president,
-                           data = match_data,
-                           family = 'binomial',
-                           weights = data_weight)
-  
-  logit_sm_mayor = glm(sm_mayor,
-                       data = match_data,
-                       family = 'binomial',
-                       weights = data_weight)
-  
-  logit_sm_legislative = glm(sm_legislative,
-                             data = match_data,
-                             family = 'binomial',
-                             weights = data_weight)
-  
-  # Full Model (FM)
-  logit_fm_president = glm(fm_president,
-                           data = match_data,
-                           family = 'binomial',
-                           weights = data_weight)
-  
-  logit_fm_mayor = glm(fm_mayor,
-                       data = match_data,
-                       family = 'binomial',
-                       weights = data_weight)
-  
-  logit_fm_legislative = glm(fm_legislative,
-                             data = match_data,
-                             family = 'binomial',
-                             weights = data_weight)
-  
-  # Using stargazer to export the regression table
-  # Filename to export as an excel file
-  words = c('Tables and Graphs/Table Bab 4 Hasil Analisis Robustness Check/Weighted Logistic Regression/Weighted Logistic Regression ', treatment_name, '.html')
-  file_name_export = paste(words, collapse = "")
-  
-  dep.var.labels=c("Non-Muslim President","Non-Muslim President",
-                   "Non-Muslim Bupati/Mayor", "Non-Muslim Bupati/Mayor",
-                   'Non-Muslim Local Parliament', 'Non-Muslim Local Parliament')
-  
-  t1 = 
-    tbl_regression(logit_sm_president, exponentiate = TRUE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  t2 = 
-    tbl_regression(logit_fm_president, exponentiate = TRUE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  
-  t3 = 
-    tbl_regression(logit_sm_mayor, exponentiate = TRUE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  t4 = 
-    tbl_regression(logit_fm_mayor, exponentiate = TRUE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  
-  t5 = 
-    tbl_regression(logit_sm_legislative, exponentiate = TRUE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  
-  t6 = 
-    tbl_regression(logit_fm_legislative, exponentiate = TRUE, # hide_se= FALSE,
-                   intercept = TRUE, tidy_fun = partial(tidy_robust, vcov = vcov_type)) %>%
-    bold_p()
-  
-  # merge tables
-  tbl_merge_ex1 <-
-    tbl_merge(
-      tbls = list(t1, t2, t3, t4, t5, t6),
-      tab_spanner = dep.var.labels
-    ) %>%
-    as_gt() %>%
-    gt::gtsave(filename = file_name_export)
-  
-  return(match_data)
-}
+# Histogram for President Model
+hist(p_values_df$p_val_president, main = "Distribution of P-values for President Model (Placebo)", 
+     xlab = "P-values", col = "skyblue", breaks = 20)
 
-#Running the function WLS_response
-wls_competition = WLS_response('competition')
+# Histogram for Mayor Model
+hist(p_values_df$p_val_mayor, main = "Distribution of P-values for Mayor Model (Placebo)", 
+     xlab = "P-values", col = "salmon", breaks = 20)
+
+# Histogram for Legislative Model
+hist(p_values_df$p_val_legislative, main = "Distribution of P-values for Legislative Model (Placebo)", 
+     xlab = "P-values", col = "lightgreen", breaks = 20)
+
+# Close the graphics device
+dev.off()
+
 
 
 
